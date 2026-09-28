@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>청취 평정 실험</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!-- 외부 라이브러리. src가 있는 <script> 태그 안에 코드를 쓰면 브라우저가 그 코드를 무시하니 태그는 비워둘 것 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+
+<style>/* 색깔 찾고 싶으면 구글에 rgb to hex 검색해서 코드 복사 후 붙여넣기 */
+:root {
+  --bg:        #f4f1ec;
+  --surface:   #ffffff;
+  --border:    #e2ddd6;
+  --text:      #1e1c18;
+  --muted:     #7a756c;
+  --accent:    #2d5f4e;
+  --accent-dk: #245041;
+  --accent-lt: #e8f0ec;
+  --warn:      #c0392b;
+  --radius:    12px;
+  --shadow:    0 2px 16px rgba(0,0,0,0.07);
+  --font-head: 'Gowun Batang', Georgia, serif;
+  --font-body: 'IBM Plex Sans KR', system-ui, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg); color: var(--text); font-family: var(--font-body);
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 2rem 1rem;
+  word-break: keep-all;
+}
+#progress-bar-wrap { position: fixed; top: 0; left: 0; right: 0; height: 4px; background: var(--border); z-index: 100; display: none; }
+#progress-bar-fill { height: 100%; background: var(--accent); transition: width 0.4s ease; border-radius: 0 2px 2px 0; }
+#demo-badge {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 101;
+  background: #fffbea; border: 1px solid #f0e080; color: #7a6800;
+  font-size: 0.78rem; padding: 0.3rem 0.9rem; border-radius: 99px; white-space: nowrap;
+}
+.card {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+  border: 1px solid var(--border); padding: 2.5rem 2.8rem; width: 100%; max-width: 640px;
+}
+.card.has-map { max-width: 820px; }
+.study-label { font-size: 0.8rem; font-weight: 600; color: var(--accent); margin-bottom: 0.8rem; }
+h1 { font-family: var(--font-head); font-size: 2rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.6rem; }
+h2 { font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; margin-bottom: 1rem; }
+.subtitle { color: var(--muted); font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.8rem; }
+p { line-height: 1.7; color: var(--muted); font-size: 0.93rem; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+label.field-label { display: block; font-weight: 600; font-size: 0.88rem; margin-bottom: 0.45rem; color: var(--text); }
+.optional { font-weight: 400; color: var(--muted); }
+input[type="text"], input[type="email"], input[type="number"], select.info-select, textarea {
+  width: 100%; padding: 0.75rem 1rem; border: 1.5px solid var(--border); border-radius: 8px;
+  font-family: var(--font-body); font-size: 1rem; color: var(--text);
+  background: var(--bg); outline: none; transition: border-color 0.2s;
+}
+select.info-select { appearance: none; }
+textarea { resize: vertical; min-height: 3.2rem; line-height: 1.5; }
+input:focus, select.info-select:focus, textarea:focus { border-color: var(--accent); background: #fff; }
+.field-hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
+.field-group { margin-bottom: 1.2rem; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.75rem 1.6rem; border-radius: 8px;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; cursor: pointer; border: none; transition: background 0.15s;
+}
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dk); }
+.btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+.btn-outline { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+.btn-outline:hover { background: var(--accent-lt); }
+.btn-block { width: 100%; justify-content: center; margin-top: 1.2rem; }
+.btn-row { display: flex; gap: 0.8rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.btn-row .btn { flex: 1; justify-content: center; }
+.error-msg { color: var(--warn); font-size: 0.85rem; margin-top: 0.5rem; display: none; line-height: 1.5; }
+
+/* 동의 */
+.consent { background: var(--bg); border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1.4rem; }
+.consent-text { max-height: 180px; overflow-y: auto; font-size: 0.88rem; color: var(--muted); line-height: 1.7; margin-bottom: 0.8rem; }
+.consent-check { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+.consent-check input { margin-top: 0.3rem; accent-color: var(--accent); }
+
+/* 자극 */
+.stim-wrap { background: var(--accent-lt); border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1.8rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.stim-wrap.is-bare { background: none; padding: 0 0 0.4rem; }
+.stim-body { display: flex; flex-direction: column; gap: 0.8rem; }
+.stim-image { display: block; width: 100%; max-height: 46vh; object-fit: contain; border-radius: 8px; background: #fff; }
+.stim-video { display: block; width: 100%; max-height: 46vh; border-radius: 8px; background: #000; }
+.stim-text { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.4rem 1.5rem;
+  font-family: var(--font-head); font-size: 1.2rem; line-height: 1.8; color: var(--text); white-space: pre-wrap; }
+.sample-counter { font-size: 0.82rem; font-weight: 600; color: var(--accent); }
+.audio-controls { display: flex; align-items: center; gap: 1rem; }
+#play-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#play-btn:hover { background: var(--accent-dk); }
+#play-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#play-btn svg { fill: #fff; }
+.audio-timeline { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; }
+#audio-progress { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #c5d9d2; outline: none; cursor: pointer; }
+#audio-progress::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.audio-time { font-size: 0.75rem; color: var(--muted); display: flex; justify-content: space-between; }
+.replay-hint { font-size: 0.8rem; color: var(--muted); text-align: center; line-height: 1.5; }
+.replay-hint.is-error { color: var(--warn); }
+.replay-hint:empty { display: none; }
+
+/* 슬라이더 응답 */
+.slider-wrap { padding: 0.2rem 0.1rem 0; }
+.slider-input { -webkit-appearance: none; appearance: none; width: 100%; height: 5px; border-radius: 3px; background: var(--border); outline: none; cursor: pointer; }
+.slider-input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: pointer; }
+.slider-input::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; cursor: pointer; }
+.slider-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.slider-input.untouched::-webkit-slider-thumb { background: var(--muted); }
+.slider-input.untouched::-moz-range-thumb { background: var(--muted); }
+.slider-value { text-align: center; font-weight: 600; font-size: 0.95rem; color: var(--accent); margin-top: 0.5rem; min-height: 1.4rem; }
+.slider-value.untouched { color: var(--muted); font-weight: 400; }
+
+/* 다중 선택 */
+.multi-row { display: flex; flex-direction: column; gap: 0.5rem; }
+.multi-option label {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.7rem 1rem;
+  border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.95rem; font-weight: 500;
+  cursor: pointer; color: var(--text); transition: background 0.15s, border-color 0.15s;
+}
+.multi-option label:hover { border-color: var(--accent); }
+.multi-option input { accent-color: var(--accent); width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
+.multi-option input:checked + span { color: var(--accent); font-weight: 600; }
+
+/* 문항 */
+.question-block { margin-bottom: 1.8rem; }
+.question-text { font-size: 0.98rem; font-weight: 500; color: var(--text); margin-bottom: 0.9rem; line-height: 1.55; }
+.question-index { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin-bottom: 0.4rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.likert-row { display: flex; gap: 0.5rem; }
+.likert-option { flex: 1; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.choice-option { flex: 1 1 8rem; }
+.likert-option label, .choice-option label {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  width: 100%; min-height: 2.6rem; padding: 0.55rem 0.6rem; border-radius: 8px;
+  border: 1.5px solid var(--border); font-weight: 600; font-size: 0.95rem;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s; color: var(--muted);
+}
+.likert-option label:hover, .choice-option label:hover { border-color: var(--accent); color: var(--accent); }
+.likert-option input:checked + label, .choice-option input:checked + label { background: var(--accent); border-color: var(--accent); color: #fff; }
+.likert-option input:focus-visible + label, .choice-option input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.likert-anchors { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+.likert-anchors span:last-child { text-align: right; }
+
+/* 지도 */
+.map-outer { border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; background: #dbeaf3; cursor: crosshair; width: 100%; }
+.map-outer svg { display: block; width: 100%; height: auto; }
+.state-path { fill: #c8dce8; stroke: #fff; stroke-width: 0.8; transition: fill 0.12s; }
+.state-path:hover { fill: #9bbdd4; }
+.state-path.active { fill: #2d5f4e !important; }
+.region-label { font-size: 17px; font-weight: 700; fill: #333; pointer-events: none; font-family: Georgia, serif; }
+.state-border { fill: none; stroke: #fff; stroke-width: 1.2; pointer-events: none; }
+.nation-border { fill: none; stroke: #8fb8cc; stroke-width: 1; pointer-events: none; }
+.map-pin { pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+.map-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; margin-top: 0.55rem; min-height: 22px; }
+.map-state-name { font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+.map-hint { font-size: 0.78rem; color: var(--muted); }
+.map-reset { font-size: 0.78rem; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0; display: none; }
+.map-reset:hover { color: var(--warn); }
+
+.task-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; padding-top: 1.2rem; border-top: 1px solid var(--border); }
+.progress-label { font-size: 0.85rem; color: var(--muted); }
+.progress-label strong { color: var(--text); }
+
+.instr-list { list-style: none; display: flex; flex-direction: column; gap: 0.9rem; margin: 1.2rem 0 1.8rem; }
+.instr-list li { display: flex; gap: 0.8rem; align-items: flex-start; font-size: 0.95rem; color: var(--text); line-height: 1.6; }
+.instr-num { background: var(--accent); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.note { font-size: 0.88rem; color: var(--muted); background: var(--bg); padding: 0.9rem 1rem; border-radius: 8px; }
+
+.complete-icon { width: 60px; height: 60px; background: var(--accent-lt); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; }
+.complete-icon svg { stroke: var(--accent); }
+.center { text-align: center; }
+.demo-export { margin-top: 1.8rem; padding-top: 1.4rem; border-top: 1px dashed var(--border); }
+
+.spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading .spinner { display: block; }
+.loading .btn-text { display: none; }
+
+.screen { display: none; width: 100%; max-width: 820px; justify-content: center; animation: fadeIn 0.3s ease; }
+.screen.active { display: flex; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .screen, #progress-bar-fill { animation: none; transition: none; } }
+@media (max-width: 560px) {
+  body { padding: 3.6rem 0.75rem 1.5rem; }
+  #demo-badge { white-space: normal; width: calc(100% - 24px); text-align: center; border-radius: 10px; }
+  .card { padding: 1.7rem 1.3rem; }
+  h1 { font-size: 1.65rem; }
+  .likert-row { gap: 0.3rem; }
+}
+
+#dev-panel { position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; background: rgba(0,0,0,0.78); border-radius: 10px; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; gap: 0.4rem; }
+#dev-panel span { font-size: 0.68rem; color: #aaa; text-align: center; }
+#dev-panel button { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.74rem; cursor: pointer; text-align: left; }
+#dev-panel button:hover { background: #555; }
+</style>
+</head>
+<body>
+
+<div id="progress-bar-wrap"><div id="progress-bar-fill" style="width:0%"></div></div>
+<div id="demo-badge" hidden>데모 모드: 서버에 저장되지 않아요. 끝나면 CSV로 받을 수 있어요.</div>
+
+<!-- 화면 1 · 로그인 -->
+<div id="screen-login" class="screen active">
+  <div class="card">
+    <div class="study-label" id="study-label"></div>
+    <h1 id="study-title"></h1>
+    <p class="subtitle" id="study-subtitle"></p>
+    <hr class="divider"/>
+    <div class="consent" id="consent-wrap" hidden>
+      <div class="consent-text" id="consent-text"></div>
+      <label class="consent-check"><input type="checkbox" id="consent-box"/><span id="consent-agree"></span></label>
+    </div>
+    <label class="field-label" for="nickname-input">참가자 ID</label>
+    <input type="text" id="nickname-input" placeholder="예: hong_gildong" autocomplete="off" autocorrect="off" spellcheck="false"/>
+    <p class="field-hint">기억할 수 있는 ID를 정해 주세요. 중간에 나갔다가 같은 ID로 들어오면 이어서 할 수 있어요.</p>
+    <div class="error-msg" id="login-error"></div>
+    <button class="btn btn-primary btn-block" id="start-btn" onclick="handleLogin()">
+      <div class="spinner"></div><span class="btn-text">실험 시작</span>
+    </button>
+  </div>
+</div>
+
+<!-- 화면 2 · 안내 -->
+<div id="screen-instructions" class="screen">
+  <div class="card">
+    <h2>진행 방법</h2>
+    <ul class="instr-list" id="instr-list"></ul>
+    <p class="note" id="study-note"></p>
+    <button class="btn btn-primary btn-block" onclick="startTask()">시작하기</button>
+  </div>
+</div>
+
+<!-- 화면 3 · 평정 과제 -->
+<div id="screen-task" class="screen">
+  <div class="card" id="task-card">
+    <div class="stim-wrap" id="stim-wrap">
+      <div class="sample-counter" id="sample-counter"></div>
+      <div class="stim-body" id="stim-body"></div>
+      <div class="replay-hint" id="replay-hint"></div>
+    </div>
+    <div id="questions-container"></div>
+    <div class="task-footer">
+      <div class="progress-label"><strong id="footer-current">1</strong> / <span id="footer-total"></span></div>
+      <button class="btn btn-primary" id="next-btn" onclick="submitResponse()" disabled><span id="next-btn-text">다음</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- 화면 4 · 참가자 정보 -->
+<div id="screen-info" class="screen">
+  <div class="card">
+    <h2>참가자 정보</h2>
+    <p style="margin-bottom:1.5rem;">마지막 단계예요. 아래 항목을 채워 주세요.</p>
+    <div id="info-fields"></div>
+    <div class="error-msg" id="info-error"></div>
+    <button class="btn btn-primary btn-block" id="info-btn" onclick="submitInfo()">
+      <div class="spinner"></div><span class="btn-text">제출</span>
+    </button>
+  </div>
+</div>
+
+<!-- 화면 5 · 다음 실험 안내 (CONFIG.NEXT_STUDY_URL이 있을 때만) -->
+<div id="screen-next" class="screen">
+  <div class="card center">
+    <h2>응답이 저장됐어요</h2>
+    <p style="margin-bottom:1.8rem;" id="next-study-text"></p>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goToNextStudy()">이어서 참여하기</button>
+      <button class="btn btn-outline" onclick="showComplete()">여기서 마치기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 화면 6 · 완료 -->
+<div id="screen-complete" class="screen">
+  <div class="card center">
+    <div class="complete-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h2>참여해 주셔서 감사합니다</h2>
+    <p id="complete-text"></p>
+    <div class="demo-export" id="demo-export" hidden>
+      <p style="margin-bottom:0.4rem;">데모 모드로 모은 데이터예요. Supabase에서 내보내는 CSV와 같은 구조입니다.</p>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="downloadDemoCSV('responses')">responses.csv</button>
+        <button class="btn btn-outline" onclick="downloadDemoCSV('participant_info')">participant_info.csv</button>
+        <button class="btn btn-outline" onclick="downloadDemoCSV('participants')">participants.csv</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  CONFIG — 실험을 바꿀 때는 이 블록만 고치면 됩니다             ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+const CONFIG = {
+
+  // ① 백엔드 ─ 둘 다 비워두면 '데모 모드'로 돌아감 (서버 없이 테스트, 마지막에 CSV 다운로드)
+  //    Supabase 대시보드 → Project Settings → API 에서 복사.
+  //    공개용 키(anon 또는 publishable)만 넣을 것. service_role / secret 키는 절대 넣지 말 것.
+  SUPABASE_URL: '',
+  SUPABASE_KEY: '',
+
+  // ② 자극 ─ STIMULUS_TYPE에 따라 화면에 나오는 방식이 달라짐
+  //    'audio'  : 재생 버튼 + 진행바        (STIMULI = 파일명)
+  //    'video'  : 영상 플레이어             (STIMULI = 파일명)
+  //    'image'  : 이미지                    (STIMULI = 파일명)
+  //    'text'   : 글자 자극                 (STIMULI = 보여줄 문장 자체)
+  //    'none'   : 자극 없이 문항만 (설문)   (STIMULI = 화면 구분용 이름)
+  //    미디어 파일은 GitHub Pages에 올린 같은 저장소의 폴더를 상대경로로 읽음.
+  //    raw.githubusercontent.com 주소는 쓰지 말 것 (재생이 불안정함).
+  //    파일명은 영문·숫자·_ 만 쓰는 게 제일 안전함.
+  //    base_url에서 볼 수 있는 'audio'가 오디오 저장한 폴더 이름. 이걸 수정하면 된다.
+  STIMULUS_TYPE: 'audio',
+  STIMULUS_BASE_URL: 'audio/',
+  STIMULI: [
+    'sample_01.mp3',
+    'sample_02.mp3',
+    'sample_03.mp3',
+  ],
+
+  // ─ 다른 자극으로 바꿀 때는 위 세 줄을 아래처럼 통째로 갈아끼우면 됨 ─
+  // 영상:  STIMULUS_TYPE: 'video', STIMULUS_BASE_URL: 'video/',
+  //        STIMULI: ['sample_01.mp4', 'sample_02.mp4'],
+  // 이미지: STIMULUS_TYPE: 'image', STIMULUS_BASE_URL: 'image/',
+  //        STIMULI: ['sample_01.png', 'sample_02.png', 'sample_03.png'],
+  // 글자:  STIMULUS_TYPE: 'text', STIMULUS_BASE_URL: '',
+  //        STIMULI: ['텍스트1', '텍스트2'],
+  // 설문:  STIMULUS_TYPE: 'none', STIMULUS_BASE_URL: '',
+  //        STIMULI: ['1부'],   ← 자극 없이 문항만. 목록 개수만큼 화면이 반복됨
+
+  SHUFFLE: true,               // true: 참가자마다 순서를 한 번 섞어 저장 (이어하기 해도 순서 유지)
+  REQUIRE_FULL_PLAY: false,    // audio/video일 때만 해당. true면 끝까지 봐야 '다음'이 열리고 건너뛰기 불가
+  MIN_VIEW_SEC: 0,             // image/text일 때만 해당. 예: 3이면 3초 지나야 '다음'이 열림 (0이면 제한 없음)
+
+  // ③ 화면 문구 ─ {n}은 자극 개수로 바뀜
+  STUDY: {
+    label: '영어학 청취 실험',
+    title: '이 목소리는 어떻게 들리나요?',
+    subtitle: '짧은 음성을 하나씩 듣고 몇 가지 질문에 답하는 실험입니다. 약 10분 걸립니다.',
+    instructions: [
+      '자극 {n}개를 하나씩 보게 됩니다.',
+      '각 자극을 확인한 뒤 질문에 답해 주세요.',
+      '중간에 쉬고 싶으면 창을 닫으세요. 같은 ID로 다시 들어오면 이어서 할 수 있어요.',
+      '정답은 없습니다. 첫인상대로 답해 주세요.',
+    ],
+    note: '🎧 가능하면 이어폰이나 헤드폰을 끼고, 조용한 곳에서 참여해 주세요.',
+    completeText: '모든 응답이 저장되었습니다. 이제 창을 닫으셔도 됩니다.',
+    nextStudyText: '짧은 녹음 과제가 하나 더 있어요. 이어서 참여하시겠어요? (선택)',
+  },
+
+  // ④ 연구 동의 ─ null로 두면 동의 체크박스 없이 시작
+  CONSENT: {
+    text: '이 실험은 ○○대학교 IRB 승인(승인번호: ○○○)을 받은 연구입니다. 수집된 응답은 연구 목적으로만 사용되며, 언제든지 참여를 중단할 수 있습니다. 문의: researcher@example.com',
+    agree: '위 내용을 읽었고, 연구 참여에 동의합니다.',
+  },
+
+  // ⑤ 문항 ─ 자극 하나마다 아래 문항이 모두 나옴. id는 데이터의 question_id 열에 그대로 찍힘.
+  //    type 6가지:
+  //      'likert' : 척도 버튼        scale(칸 수), anchorLow, anchorHigh
+  //      'slider' : 연속 슬라이더    min, max, step, anchorLow, anchorHigh, unit(선택)
+  //      'choice' : 하나 고르기      options — 2개면 2AFC, 여러 개면 n-AFC
+  //      'multi'  : 여러 개 고르기   options, minSelect(선택, 기본 1)
+  //      'text'   : 자유 응답        placeholder(선택)
+  //      'map'    : 미국 지도에 핀   (아래 REGIONS 설정을 같이 씀)
+  //    required: 생략하면 text만 선택, 나머지는 필수
+  QUESTIONS: [
+    { id: 'natural', type: 'likert', scale: 5,
+      text: '이 목소리는 얼마나 자연스럽게 들리나요?',
+      anchorLow: '전혀 자연스럽지 않음', anchorHigh: '매우 자연스러움' },
+    { id: 'human_or_tts', type: 'choice',
+      text: '사람 목소리인가요, 합성음인가요?',
+      options: ['사람', '합성음'] },
+    { id: 'age_guess', type: 'slider', min: 10, max: 80, step: 1, unit: '세',
+      text: '화자의 나이는 몇 살쯤으로 들리나요?',
+      anchorLow: '10세', anchorHigh: '80세' },
+    { id: 'impression', type: 'multi', minSelect: 1,
+      text: '이 목소리에 어울리는 인상을 모두 골라 주세요.',
+      options: ['친근함', '전문적임', '딱딱함', '밝음', '차분함'] },
+    { id: 'comment', type: 'text',
+      text: '떠오르는 인상이 있으면 자유롭게 적어 주세요.', placeholder: '선택 사항' },
+    // { id: 'origin', type: 'map', text: '이 목소리는 미국 어느 지역 출신 같나요? 지도를 눌러 핀을 꽂아 주세요.' },
+  ],
+
+  // ⑥ 참가자 정보 ─ 모든 자극이 끝난 뒤 한 번. 빈 배열 []이면 이 화면을 건너뜀.
+  //    type: 'text' | 'number' | 'email' | 'select'(options 필요). 이름·이메일 같은 개인정보는 IRB 승인 범위 안에서만.
+  INFO_FIELDS: [
+    { id: 'age', label: '나이', type: 'number', placeholder: '예: 24' },
+    { id: 'native_language', label: '모국어', type: 'text', placeholder: '예: 한국어' },
+    { id: 'english_level', label: '영어 수준', type: 'select',
+      options: ['원어민', '원어민에 가까움', '중급', '초급'] },
+    { id: 'comments', label: '남기고 싶은 말', type: 'text', required: false },
+  ],
+
+  // ⑦ 이어지는 실험 ─ 주소를 넣으면 끝에 '이어서 참여' 화면이 나옴 (예: 'recording.html'). 비우면 바로 완료.
+  NEXT_STUDY_URL: '',
+
+  // ⑧ 개발용 화면 이동 패널 ─ 배포할 땐 false. 주소 끝에 ?dev 를 붙이면 false여도 켜짐.
+  DEV_PANEL: false,
+};
+
+/* 지도 문항('map')을 쓸 때만 필요한 설정 — 지역 묶음과 색. 연구 설계에 맞게 고칠 것 */
+const REGIONS = {
+  'West':         { states: ['Washington','Oregon','California','Nevada','Idaho','Montana','Wyoming','Utah','Colorado','Arizona','New Mexico'], color: '#b8d0c0', labelX: 195, labelY: 320 },
+  'Midwest':      { states: ['North Dakota','South Dakota','Nebraska','Kansas','Minnesota','Iowa','Missouri','Wisconsin','Illinois','Indiana','Michigan','Ohio'], color: '#e8c87a', labelX: 535, labelY: 215 },
+  'South':        { states: ['Texas','Oklahoma','Arkansas','Louisiana','Mississippi','Alabama','Tennessee','Kentucky','West Virginia','North Carolina','South Carolina','Georgia','Florida'], color: '#f0b8b8', labelX: 590, labelY: 410 },
+  'Mid-Atlantic': { states: ['New Jersey','Pennsylvania','Delaware','Maryland','Virginia'], color: '#c0c0c8', labelX: 800, labelY: 225 },
+  'New England':  { states: ['Maine','New Hampshire','Vermont','Massachusetts','Rhode Island','Connecticut'], color: '#c0a8d8', labelX: 878, labelY: 108 },
+  'NYC':          { states: ['New York'], color: '#a088c8', labelX: 818, labelY: 162 },
+};
+
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  ENGINE — 보통은 여기 아래를 고칠 일이 없습니다                ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const DEMO = !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY;
+const QS   = CONFIG.QUESTIONS.map(q => ({ required: q.type !== 'text', ...q }));
+const INFO = CONFIG.INFO_FIELDS.map(f => ({ required: true, type: 'text', ...f }));
+
+/* ── 데이터 저장소: 데모(메모리) / Supabase 중 하나. 화면 코드는 어느 쪽인지 모름 ── */
+const store = DEMO ? makeDemoStore() : makeSupabaseStore();
+
+function makeSupabaseStore() {
+  const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  // supabase-js는 실패해도 예외를 던지지 않고 { error }를 돌려줌 → 여기서 직접 던져야 저장 실패가 안 묻힘
+  const run = async req => { const { data, error } = await req; if (error) throw error; return data; };
+  const updateParticipant = async (id, fields) => {
+    const rows = await run(db.from('participants').update(fields).eq('id', id).select('id'));
+    if (!rows.length) throw new Error('participants 행을 수정하지 못했어요 (RLS update 정책 확인).');
+  };
+  return {
+    findParticipant: nickname => run(db.from('participants').select('*').eq('nickname', nickname).maybeSingle()),
+    createParticipant: (nickname, order) => run(db.from('participants')
+      .insert({ nickname, sample_order: order, last_sample_index: 0, completed: false }).select().single()),
+    async saveTrial(rows, pid, nextIndex, done) {
+      await run(db.from('responses').insert(rows));
+      await updateParticipant(pid, { last_sample_index: nextIndex, completed: done });
+    },
+    async saveInfo(rows, pid) {
+      if (rows.length) await run(db.from('participant_info').insert(rows));
+      await updateParticipant(pid, { finished_at: new Date().toISOString() });
+    },
+  };
+}
+
+function makeDemoStore() {
+  const mem = { participants: [], responses: [], participant_info: [] };
+  window.demoData = mem;   // 콘솔에서 demoData 로 확인 가능
+  const find = id => mem.participants.find(p => p.id === id);
+  return {
+    async findParticipant(nickname) { return mem.participants.find(p => p.nickname === nickname) || null; },
+    async createParticipant(nickname, order) {
+      const p = { id: 'demo-' + (mem.participants.length + 1), nickname, sample_order: order,
+                  last_sample_index: 0, completed: false, finished_at: null, created_at: new Date().toISOString() };
+      mem.participants.push(p); return p;
+    },
+    async saveTrial(rows, pid, nextIndex, done) {
+      mem.responses.push(...rows);
+      Object.assign(find(pid), { last_sample_index: nextIndex, completed: done });
+      console.table(rows);
+    },
+    async saveInfo(rows, pid) {
+      mem.participant_info.push(...rows);
+      find(pid).finished_at = new Date().toISOString();
+    },
+  };
+}
+
+/* ── 상태 ── */
+let state = { nickname: '', participantId: null, sampleOrder: [], currentIndex: 0 };
+let stimDone = false, submitting = false;
+
+/* ── 공통 ── */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $('screen-' + id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+function showError(id, msg) { const el = $(id); el.textContent = msg; el.style.display = 'block'; }
+function hideError(id) { $(id).style.display = 'none'; }
+function setLoading(btn, on) { btn.classList.toggle('loading', on); btn.disabled = on; }
+function errText(err) { return (err && (err.message || err.details)) || String(err); }
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+/* ── 초기 화면 채우기 ── */
+(function init() {
+  const S = CONFIG.STUDY, n = CONFIG.STIMULI.length;
+  $('study-label').textContent = S.label;
+  $('study-title').innerHTML = S.title;
+  $('study-subtitle').innerHTML = S.subtitle;
+  $('instr-list').innerHTML = S.instructions.map((t, i) =>
+    `<li><span class="instr-num">${i + 1}</span><span>${t.replace('{n}', `<strong>${n}</strong>`)}</span></li>`).join('');
+  $('study-note').innerHTML = S.note;
+  $('study-note').hidden = !S.note;
+  $('complete-text').innerHTML = S.completeText;
+  $('next-study-text').innerHTML = S.nextStudyText;
+  if (CONFIG.CONSENT) {
+    $('consent-wrap').hidden = false;
+    $('consent-text').innerHTML = CONFIG.CONSENT.text;
+    $('consent-agree').innerHTML = CONFIG.CONSENT.agree;
+  }
+  if (DEMO) { $('demo-badge').hidden = false; console.info('[데모 모드] SUPABASE_URL/KEY가 비어 있어 서버에 저장하지 않습니다.'); }
+  $('nickname-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+})();
+
+/* ── 로그인 / 이어하기 ── */
+async function handleLogin() {
+  const nickname = $('nickname-input').value.trim();
+  if (CONFIG.CONSENT && !$('consent-box').checked) return showError('login-error', '연구 참여 동의에 체크해 주세요.');
+  if (!nickname) return showError('login-error', '참가자 ID를 입력해 주세요.');
+  hideError('login-error');
+  const btn = $('start-btn');
+  setLoading(btn, true);
+
+  try {
+    const existing = await store.findParticipant(nickname);
+    if (existing) {
+      if (existing.finished_at) return showError('login-error', '이 ID는 이미 실험을 마쳤어요. 다른 ID를 입력해 주세요.');
+      const resume = confirm('이 ID로 진행하던 기록이 있어요.\n\n확인: 이어서 하기\n취소: 다른 ID 입력하기');
+      if (!resume) return showError('login-error', '다른 참가자 ID를 입력해 주세요.');
+      Object.assign(state, { nickname, participantId: existing.id,
+        sampleOrder: existing.sample_order, currentIndex: existing.last_sample_index });
+      if (existing.completed) return finishTrials();   // 평정은 끝났고 정보 입력만 남은 경우
+    } else {
+      const order = CONFIG.SHUFFLE ? shuffle(CONFIG.STIMULI) : CONFIG.STIMULI.slice();
+      const created = await store.createParticipant(nickname, order);
+      Object.assign(state, { nickname, participantId: created.id, sampleOrder: order, currentIndex: 0 });
+    }
+    showScreen('instructions');
+  } catch (err) {
+    console.error(err);
+    showError('login-error', '서버에 연결하지 못했어요. ' + errText(err));
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function startTask() {
+  $('progress-bar-wrap').style.display = 'block';
+  renderQuestions();
+  loadSample(state.currentIndex);
+  showScreen('task');
+}
+
+/* ── 문항 그리기 ── */
+function renderQuestions() {
+  $('questions-container').innerHTML = QS.map((q, i) => {
+    const head = `<div class="question-index">문항 ${i + 1} / ${QS.length}${q.required ? '' : ' (선택)'}</div>
+                  <div class="question-text">${q.text}</div>`;
+    let input = '';
+    if (q.type === 'likert') {
+      input = `<div class="likert-row" role="radiogroup">${Array.from({ length: q.scale }, (_, k) => `
+          <div class="likert-option">
+            <input class="sr-only" type="radio" name="${q.id}" id="${q.id}_${k + 1}" value="${k + 1}" onchange="onResponseChange()"/>
+            <label for="${q.id}_${k + 1}">${k + 1}</label>
+          </div>`).join('')}</div>
+        <div class="likert-anchors"><span>${q.anchorLow || ''}</span><span>${q.anchorHigh || ''}</span></div>`;
+    } else if (q.type === 'choice') {
+      input = `<div class="choice-row" role="radiogroup">${q.options.map((opt, k) => `
+          <div class="choice-option">
+            <input class="sr-only" type="radio" name="${q.id}" id="${q.id}_${k}" value="${esc(opt)}" onchange="onResponseChange()"/>
+            <label for="${q.id}_${k}">${opt}</label>
+          </div>`).join('')}</div>`;
+    } else if (q.type === 'slider') {
+      const mid = Math.round(((q.min + q.max) / 2) / (q.step || 1)) * (q.step || 1);
+      input = `<div class="slider-wrap">
+          <input class="slider-input untouched" type="range" id="${q.id}_slider"
+                 min="${q.min}" max="${q.max}" step="${q.step || 1}" value="${mid}"
+                 oninput="onSliderInput('${q.id}')" onchange="onSliderInput('${q.id}')"/>
+          <div class="likert-anchors"><span>${q.anchorLow || q.min}</span><span>${q.anchorHigh || q.max}</span></div>
+          <div class="slider-value untouched" id="${q.id}_value">눈금을 움직여 주세요</div>
+        </div>`;
+    } else if (q.type === 'multi') {
+      input = `<div class="multi-row" role="group">${q.options.map((opt, k) => `
+          <div class="multi-option">
+            <label for="${q.id}_${k}"><input type="checkbox" id="${q.id}_${k}" name="${q.id}" value="${esc(opt)}" onchange="onResponseChange()"/><span>${opt}</span></label>
+          </div>`).join('')}</div>`;
+    } else if (q.type === 'text') {
+      input = `<textarea id="${q.id}_text" rows="2" placeholder="${esc(q.placeholder || '')}" oninput="onResponseChange()"></textarea>`;
+    } else if (q.type === 'map') {
+      input = `<div class="map-outer"><svg id="${q.id}_svg"></svg></div>
+        <div class="map-footer">
+          <span class="map-state-name" id="${q.id}_statename">—</span>
+          <span class="map-hint" id="${q.id}_hint">주를 눌러 핀을 꽂아 주세요</span>
+          <button class="map-reset" id="${q.id}_reset" onclick="resetMap('${q.id}')">핀 지우기</button>
+        </div>`;
+    } else {
+      console.warn('알 수 없는 문항 type:', q.type);
+    }
+    return `<div class="question-block" data-qid="${q.id}">${head}${input}</div>`;
+  }).join('');
+
+  $('task-card').classList.toggle('has-map', QS.some(q => q.type === 'map'));
+  requestAnimationFrame(initMaps);
+}
+
+function isAnswered(q) {
+  if (q.type === 'likert' || q.type === 'choice') return !!document.querySelector(`input[name="${q.id}"]:checked`);
+  if (q.type === 'multi')  return document.querySelectorAll(`input[name="${q.id}"]:checked`).length >= (q.minSelect || 1);
+  if (q.type === 'slider') return !$(`${q.id}_slider`).classList.contains('untouched');
+  if (q.type === 'text')   return $(`${q.id}_text`).value.trim() !== '';
+  if (q.type === 'map')    return !!(mapPins[q.id] && mapPins[q.id].placed);
+  return true;
+}
+function onSliderInput(qid) {
+  const el = $(qid + '_slider'), out = $(qid + '_value');
+  const q = QS.find(x => x.id === qid);
+  el.classList.remove('untouched'); out.classList.remove('untouched');
+  out.textContent = el.value + (q && q.unit ? ' ' + q.unit : '');
+  onResponseChange();
+}
+function onResponseChange() {
+  const ok = QS.every(q => !q.required || isAnswered(q));
+  $('next-btn').disabled = !(ok && stimDone) || submitting;
+}
+
+/* ── 자극 제시 ─ STIMULUS_TYPE에 따라 화면이 달라지는 부분 ── */
+const TYPE = CONFIG.STIMULUS_TYPE;
+const IS_PLAYABLE = TYPE === 'audio' || TYPE === 'video';   // 재생이 있는 자극
+let mediaEl = null, maxPlayed = 0, viewTimer = null;
+
+const HINTS = {
+  audio: CONFIG.REQUIRE_FULL_PLAY ? '끝까지 들어야 다음으로 넘어갈 수 있어요. 여러 번 들어도 괜찮아요.' : '여러 번 들어도 괜찮아요.',
+  video: CONFIG.REQUIRE_FULL_PLAY ? '끝까지 봐야 다음으로 넘어갈 수 있어요. 여러 번 봐도 괜찮아요.' : '여러 번 봐도 괜찮아요.',
+};
+
+function stimulusURL(item) { return CONFIG.STIMULUS_BASE_URL + encodeURIComponent(item); }
+
+// 자극 영역을 통째로 다시 그림 (트라이얼마다 호출)
+function renderStimulus(item) {
+  const body = $('stim-body');
+  $('stim-wrap').classList.toggle('is-bare', TYPE === 'none' || TYPE === 'text');
+  clearTimeout(viewTimer); mediaEl = null; maxPlayed = 0;
+  setHint(HINTS[TYPE] || '', false);
+
+  if (TYPE === 'none') { body.innerHTML = ''; markStimDone(); return; }
+
+  if (TYPE === 'text') {
+    body.innerHTML = `<div class="stim-text">${esc(item)}</div>`;
+  } else if (TYPE === 'image') {
+    body.innerHTML = `<img class="stim-image" id="stim-media" alt="자극 이미지" src="${stimulusURL(item)}"/>`;
+    $('stim-media').addEventListener('error', onMediaError);
+  } else if (TYPE === 'video') {
+    body.innerHTML = `<video class="stim-video" id="stim-media" playsinline controls${CONFIG.REQUIRE_FULL_PLAY ? ' controlslist="nodownload noplaybackrate"' : ''} src="${stimulusURL(item)}"></video>`;
+  } else {  // audio
+    body.innerHTML = `
+      <div class="audio-controls">
+        <button id="play-btn" type="button" aria-label="재생 / 일시정지">
+          <svg id="play-icon" width="14" height="16" viewBox="0 0 14 16"><path d="M2 1l10 7L2 15z"/></svg>
+          <svg id="pause-icon" width="14" height="16" viewBox="0 0 14 16" style="display:none"><rect x="2" y="1" width="4" height="14" rx="1"/><rect x="8" y="1" width="4" height="14" rx="1"/></svg>
+        </button>
+        <div class="audio-timeline">
+          <input type="range" id="audio-progress" value="0" min="0" max="100" step="0.01" aria-label="재생 위치"/>
+          <div class="audio-time"><span id="time-current">0:00</span><span id="time-total">0:00</span></div>
+        </div>
+      </div>
+      <audio id="stim-media" preload="auto" src="${stimulusURL(item)}"></audio>`;
+    $('play-btn').addEventListener('click', togglePlay);
+    wireAudioBar();
+  }
+
+  if (IS_PLAYABLE) { mediaEl = $('stim-media'); wireMedia(); }
+  else if (CONFIG.MIN_VIEW_SEC > 0) {
+    setHint(`${CONFIG.MIN_VIEW_SEC}초 뒤에 응답할 수 있어요.`, false);
+    viewTimer = setTimeout(() => { setHint('', false); markStimDone(); }, CONFIG.MIN_VIEW_SEC * 1000);
+  } else markStimDone();
+}
+
+function onMediaError() {
+  console.error('자극을 불러오지 못했어요:', stimulusURL(state.sampleOrder[state.currentIndex]));
+  setHint(`자극을 불러오지 못했어요 (${state.sampleOrder[state.currentIndex]}). 파일명과 STIMULUS_BASE_URL을 확인하세요.`, true);
+}
+
+function wireMedia() {
+  const m = mediaEl;
+  m.addEventListener('play',  () => { setPlayIcon(true); if (!CONFIG.REQUIRE_FULL_PLAY) markStimDone(); });
+  m.addEventListener('pause', () => setPlayIcon(false));
+  m.addEventListener('ended', () => { setPlayIcon(false); markStimDone(); });
+  m.addEventListener('error', onMediaError);
+  m.addEventListener('timeupdate', () => { if (m.duration > 0) maxPlayed = Math.max(maxPlayed, m.currentTime); });
+  // 안 본 구간으로 건너뛰기 방지
+  m.addEventListener('seeking', () => {
+    if (CONFIG.REQUIRE_FULL_PLAY && !stimDone && m.currentTime > maxPlayed + 0.5) m.currentTime = maxPlayed;
+  });
+}
+
+// 오디오 전용 진행바
+function wireAudioBar() {
+  const bar = $('audio-progress'), m = $('stim-media');
+  m.addEventListener('loadedmetadata', () => { $('time-total').textContent = formatTime(m.duration); });
+  m.addEventListener('timeupdate', () => {
+    if (!(m.duration > 0)) return;
+    bar.value = m.currentTime / m.duration * 100;
+    $('time-current').textContent = formatTime(m.currentTime);
+  });
+  bar.addEventListener('input', () => {
+    if (!(m.duration > 0)) return;
+    let t = bar.value / 100 * m.duration;
+    if (CONFIG.REQUIRE_FULL_PLAY && !stimDone) t = Math.min(t, maxPlayed);
+    m.currentTime = t;
+  });
+}
+
+function setHint(text, isError) { const h = $('replay-hint'); h.textContent = text; h.classList.toggle('is-error', isError); }
+function setPlayIcon(p) { const a = $('play-icon'), b = $('pause-icon'); if (!a) return; a.style.display = p ? 'none' : 'block'; b.style.display = p ? 'block' : 'none'; }
+function markStimDone() { if (!stimDone) { stimDone = true; onResponseChange(); } }
+function togglePlay() {
+  if (!mediaEl) return;
+  if (mediaEl.paused) mediaEl.play().catch(err => console.warn('재생 실패:', err));
+  else mediaEl.pause();
+}
+function formatTime(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m}:${String(s).padStart(2, '0')}`; }
+
+function loadSample(index) {
+  const total = state.sampleOrder.length;
+  stimDone = false;
+  $('sample-counter').textContent = `${index + 1} / ${total}`;
+  $('footer-current').textContent = index + 1;
+  $('footer-total').textContent = total;
+  $('next-btn-text').textContent = index === total - 1 ? '마치기' : '다음';
+  $('progress-bar-fill').style.width = (index / total * 100) + '%';
+  renderStimulus(state.sampleOrder[index]);
+  resetResponses();
+}
+
+function resetResponses() {
+  document.querySelectorAll('#questions-container input[type="radio"], #questions-container input[type="checkbox"]').forEach(r => r.checked = false);
+  document.querySelectorAll('#questions-container textarea').forEach(t => t.value = '');
+  QS.filter(q => q.type === 'slider').forEach(q => {
+    const el = $(q.id + '_slider'), out = $(q.id + '_value');
+    el.value = Math.round(((q.min + q.max) / 2) / (q.step || 1)) * (q.step || 1);
+    el.classList.add('untouched'); out.classList.add('untouched');
+    out.textContent = '눈금을 움직여 주세요';
+  });
+  QS.filter(q => q.type === 'map').forEach(q => resetMap(q.id));
+  onResponseChange();
+}
+
+/* ── 응답 모으기 & 저장 ── */
+// 한 문항 = 한 행 (long format). 문항을 바꿔도 테이블 구조는 그대로.
+function collectRows() {
+  const base = {
+    participant_id: state.participantId, nickname: state.nickname,
+    stimulus: state.sampleOrder[state.currentIndex], trial_index: state.currentIndex,
+    responded_at: new Date().toISOString(),
+  };
+  const rows = [];
+  const add = (question_id, v) => rows.push({ ...base, question_id, value: v == null || v === '' ? null : String(v) });
+  QS.forEach(q => {
+    if (q.type === 'likert' || q.type === 'choice') {
+      const sel = document.querySelector(`input[name="${q.id}"]:checked`);
+      add(q.id, sel && sel.value);
+    } else if (q.type === 'multi') {
+      const picked = [...document.querySelectorAll(`input[name="${q.id}"]:checked`)].map(i => i.value);
+      add(q.id, picked.join('|'));          // 여러 개는 | 로 이어 붙임. R: strsplit(value, "|", fixed=TRUE)
+    } else if (q.type === 'slider') {
+      const el = $(`${q.id}_slider`);
+      add(q.id, el.classList.contains('untouched') ? null : el.value);
+    } else if (q.type === 'text') {
+      add(q.id, $(`${q.id}_text`).value.trim());
+    } else if (q.type === 'map') {
+      const pin = mapPins[q.id] || {};
+      add(q.id + '_state', pin.placed ? pin.state : null);
+      add(q.id + '_x_pct', pin.placed ? pin.x_pct : null);
+      add(q.id + '_y_pct', pin.placed ? pin.y_pct : null);
+    }
+  });
+  return rows;
+}
+
+async function submitResponse() {
+  if (submitting) return;
+  submitting = true; $('next-btn').disabled = true;
+  if (mediaEl) mediaEl.pause();
+
+  const nextIndex = state.currentIndex + 1;
+  const done = nextIndex >= state.sampleOrder.length;
+  try {
+    if (state.participantId) await store.saveTrial(collectRows(), state.participantId, nextIndex, done);
+    else console.warn('[DEV] 로그인 없이 들어온 상태라 저장하지 않았어요.');
+    state.currentIndex = nextIndex;
+    submitting = false;
+    if (done) finishTrials(); else loadSample(nextIndex);
+  } catch (err) {
+    console.error(err);
+    submitting = false;
+    alert('응답을 저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.\n\n(' + errText(err) + ')');
+    onResponseChange();
+  }
+}
+
+/* ── 참가자 정보 ── */
+async function finishTrials() {
+  $('progress-bar-wrap').style.display = 'block';
+  $('progress-bar-fill').style.width = '100%';
+  if (INFO.length) { renderInfo(); showScreen('info'); return; }
+  try { if (state.participantId) await store.saveInfo([], state.participantId); }
+  catch (err) { console.error(err); }   // 응답은 이미 저장됨. 완료 표시만 실패한 경우라 진행은 막지 않음
+  afterFinish();
+}
+
+function renderInfo() {
+  $('info-fields').innerHTML = INFO.map(f => {
+    const label = `<label class="field-label" for="info-${f.id}">${f.label}${f.required ? '' : ' <span class="optional">(선택)</span>'}</label>`;
+    const input = f.type === 'select'
+      ? `<select class="info-select" id="info-${f.id}"><option value="" selected>선택해 주세요</option>
+           ${f.options.map(o => `<option value="${esc(o)}">${o}</option>`).join('')}</select>`
+      : `<input type="${f.type}" id="info-${f.id}" placeholder="${esc(f.placeholder || '')}"${f.type === 'number' ? ' inputmode="numeric"' : ''}/>`;
+    return `<div class="field-group">${label}${input}</div>`;
+  }).join('');
+}
+
+async function submitInfo() {
+  const values = INFO.map(f => ({ f, v: $('info-' + f.id).value.trim() }));
+  const missing = values.filter(({ f, v }) => f.required && !v).map(({ f }) => f.label);
+  if (missing.length) return showError('info-error', '다음 항목을 채워 주세요: ' + missing.join(', '));
+  hideError('info-error');
+
+  const btn = $('info-btn');
+  setLoading(btn, true);
+  const now = new Date().toISOString();
+  const rows = values.map(({ f, v }) => ({
+    participant_id: state.participantId, nickname: state.nickname,
+    field_id: f.id, value: v || null, submitted_at: now,
+  }));
+  try {
+    if (state.participantId) await store.saveInfo(rows, state.participantId);
+    afterFinish();
+  } catch (err) {
+    console.error(err);
+    showError('info-error', '저장하지 못했어요. 다시 눌러 주세요. (' + errText(err) + ')');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function afterFinish() { CONFIG.NEXT_STUDY_URL ? showScreen('next') : showComplete(); }
+function showComplete() { $('demo-export').hidden = !DEMO; showScreen('complete'); }
+function goToNextStudy() {
+  const url = CONFIG.NEXT_STUDY_URL;
+  const qs = `nickname=${encodeURIComponent(state.nickname)}&pid=${encodeURIComponent(state.participantId || '')}`;
+  location.href = url + (url.includes('?') ? '&' : '?') + qs;
+}
+
+/* ── 데모 모드 CSV 내보내기 (엑셀 한글 깨짐 방지로 BOM 포함) ── */
+function toCSV(rows) {
+  if (!rows.length) return '';
+  const cols = [...new Set(rows.flatMap(Object.keys))];
+  const cell = v => {
+    if (v == null) return '';
+    const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(','), ...rows.map(r => cols.map(c => cell(r[c])).join(','))].join('\r\n');
+}
+function downloadDemoCSV(table) {
+  const blob = new Blob(['\uFEFF' + toCSV(window.demoData[table])], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = table + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ── 지도 문항 ── */
+let topoCache = null;
+const mapPins = {};
+
+async function initMaps() {
+  const mapQs = QS.filter(q => q.type === 'map');
+  if (!mapQs.length) return;
+  try {
+    if (!topoCache) topoCache = await (await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json')).json();
+  } catch (err) {
+    console.error(err);
+    mapQs.forEach(q => { $(q.id + '_hint').textContent = '지도를 불러오지 못했어요. 새로고침해 주세요.'; });
+    return;
+  }
+  mapQs.forEach(q => { drawMap(q.id, topoCache); resetMap(q.id); });
+}
+
+function drawMap(qid, topo) {
+  const svgEl = $(qid + '_svg');
+  const W = 960, H = 600;
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  const states  = topojson.feature(topo, topo.objects.states);
+  const borders = topojson.mesh(topo, topo.objects.states, (a, b) => a !== b);
+  const nation  = topojson.mesh(topo, topo.objects.states, (a, b) => a === b);
+  const path    = d3.geoPath().projection(d3.geoAlbersUsa().scale(1280).translate([W / 2, H / 2]));
+
+  const nameById = {};
+  topo.objects.states.geometries.forEach(g => { nameById[g.id] = (g.properties && g.properties.name) || g.id; });
+  const regionOf = {};
+  Object.entries(REGIONS).forEach(([r, cfg]) => cfg.states.forEach(s => { regionOf[s] = r; }));
+
+  svg.append('g').selectAll('path').data(states.features).join('path')
+    .attr('class', 'state-path').attr('d', path)
+    .attr('data-name', d => nameById[d.id] || '')
+    .style('fill', d => { const r = regionOf[nameById[d.id]]; return r ? REGIONS[r].color : null; })
+    .on('click', (event, d) => { const [x, y] = d3.pointer(event, svgEl); placeMapPin(qid, x, y, nameById[d.id] || ''); });
+  svg.append('path').datum(borders).attr('class', 'state-border').attr('d', path);
+  svg.append('path').datum(nation).attr('class', 'nation-border').attr('d', path);
+  Object.entries(REGIONS).forEach(([r, cfg]) =>
+    svg.append('text').attr('class', 'region-label').attr('x', cfg.labelX).attr('y', cfg.labelY).attr('text-anchor', 'middle').text(r));
+
+  svgEl.addEventListener('click', e => { if (e.target === svgEl) placeMapPin(qid, 0, 0, null); });
+  setupPinDrag(qid, svgEl, W, H);
+}
+
+function placeMapPin(qid, x, y, stateName) {
+  const W = 960, H = 600;
+  if (!stateName) {
+    const hint = $(qid + '_hint');
+    hint.textContent = '⚠ 미국의 주를 눌러 주세요.'; hint.style.color = 'var(--warn)';
+    setTimeout(() => { hint.style.color = ''; hint.textContent = mapPins[qid] && mapPins[qid].placed ? '핀을 끌어서 옮길 수 있어요' : '주를 눌러 핀을 꽂아 주세요'; }, 2000);
+    return;
+  }
+  const svg = d3.select($(qid + '_svg'));
+  svg.select('.map-pin').remove();
+  const g = svg.append('g').attr('class', 'map-pin').attr('transform', `translate(${x},${y})`);
+  g.append('path').attr('d', 'M0,-22 C-8,-22 -14,-16 -14,-8 C-14,4 0,22 0,22 C0,22 14,4 14,-8 C14,-16 8,-22 0,-22 Z').attr('fill', '#E24B4A');
+  g.append('circle').attr('r', 5).attr('fill', 'white').attr('cy', -8);
+  highlightState(qid, stateName);
+  mapPins[qid] = { placed: true, state: stateName, x_pct: Math.round(x / W * 1000) / 10, y_pct: Math.round(y / H * 1000) / 10 };
+  $(qid + '_statename').textContent = stateName;
+  $(qid + '_hint').textContent = '핀을 끌어서 옮길 수 있어요';
+  $(qid + '_reset').style.display = 'inline';
+  onResponseChange();
+}
+
+function highlightState(qid, name) {
+  d3.select($(qid + '_svg')).selectAll('.state-path').classed('active', function () { return !!name && this.getAttribute('data-name') === name; });
+}
+
+function setupPinDrag(qid, svgEl, W, H) {
+  const coords = e => {
+    const r = svgEl.getBoundingClientRect(), p = e.touches ? e.touches[0] : e;
+    return [Math.max(0, Math.min(W, (p.clientX - r.left) * W / r.width)), Math.max(0, Math.min(H, (p.clientY - r.top) * H / r.height))];
+  };
+  const move = (x, y) => {
+    d3.select(svgEl).select('.map-pin').attr('transform', `translate(${x},${y})`);
+    const r = svgEl.getBoundingClientRect();
+    const el = document.elementFromPoint(r.left + x / W * r.width, r.top + y / H * r.height);
+    const sn = el && el.classList.contains('state-path') ? el.getAttribute('data-name') : null;
+    highlightState(qid, sn);
+    $(qid + '_statename').textContent = sn || '—';
+    mapPins[qid] = { placed: true, state: sn || '(outside)', x_pct: Math.round(x / W * 1000) / 10, y_pct: Math.round(y / H * 1000) / 10 };
+  };
+  const onPinGrab = (e, moveEvt, endEvt, target) => {
+    if (!mapPins[qid] || !mapPins[qid].placed) return;
+    const pin = d3.select(svgEl).select('.map-pin').node();
+    if (!pin) return;
+    const pr = pin.getBoundingClientRect(), p = e.touches ? e.touches[0] : e;
+    if (p.clientX < pr.left - 6 || p.clientX > pr.right + 6 || p.clientY < pr.top - 6 || p.clientY > pr.bottom + 6) return;
+    e.preventDefault();
+    const onMove = ev => { ev.preventDefault(); move(...coords(ev)); };
+    const onEnd = () => { target.removeEventListener(moveEvt, onMove); target.removeEventListener(endEvt, onEnd); };
+    target.addEventListener(moveEvt, onMove, { passive: false });
+    target.addEventListener(endEvt, onEnd);
+  };
+  svgEl.addEventListener('mousedown', e => onPinGrab(e, 'mousemove', 'mouseup', document));
+  svgEl.addEventListener('touchstart', e => onPinGrab(e, 'touchmove', 'touchend', svgEl), { passive: false });
+}
+
+function resetMap(qid) {
+  if (!$(qid + '_svg')) return;
+  if (window.d3) { d3.select($(qid + '_svg')).select('.map-pin').remove(); highlightState(qid, null); }
+  mapPins[qid] = { placed: false, state: null, x_pct: null, y_pct: null };
+  $(qid + '_statename').textContent = '—';
+  $(qid + '_hint').textContent = '주를 눌러 핀을 꽂아 주세요';
+  $(qid + '_hint').style.color = '';
+  $(qid + '_reset').style.display = 'none';
+  onResponseChange();
+}
+
+/* ── 개발용 패널 (CONFIG.DEV_PANEL 또는 주소에 ?dev) ── */
+if (CONFIG.DEV_PANEL || new URLSearchParams(location.search).has('dev')) {
+  const panel = document.createElement('div');
+  panel.id = 'dev-panel';
+  const jumps = [
+    ['1. 로그인', () => showScreen('login')],
+    ['2. 안내', () => showScreen('instructions')],
+    ['3. 과제', () => { if (!state.sampleOrder.length) state.sampleOrder = CONFIG.STIMULI.slice(); startTask(); }],
+    ['4. 정보', () => { renderInfo(); showScreen('info'); }],
+    ['5. 다음 실험', () => showScreen('next')],
+    ['6. 완료', () => showComplete()],
+  ];
+  panel.innerHTML = '<span>DEV (Ctrl+Shift+숫자)</span>';
+  jumps.forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; panel.appendChild(b); });
+  document.body.appendChild(panel);
+  document.addEventListener('keydown', e => {
+    if (!e.ctrlKey || !e.shiftKey || e.altKey) return;
+    const j = jumps[parseInt(e.code.replace('Digit', ''), 10) - 1];
+    if (j) { e.preventDefault(); j[1](); }
+  });
+}
+</script>
+</body>
+</html>

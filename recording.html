@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>녹음 과제</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!-- 외부 라이브러리. src가 있는 <script> 태그 안에 코드를 쓰면 브라우저가 그 코드를 무시하니 태그는 비워둘 것 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root {
+  --bg:        #f4f1ec;
+  --surface:   #ffffff;
+  --border:    #e2ddd6;
+  --text:      #1e1c18;
+  --muted:     #7a756c;
+  --accent:    #2d5f4e;
+  --accent-dk: #245041;
+  --accent-lt: #e8f0ec;
+  --warn:      #c0392b;
+  --radius:    12px;
+  --shadow:    0 2px 16px rgba(0,0,0,0.07);
+  --font-head: 'Gowun Batang', Georgia, serif;
+  --font-body: 'IBM Plex Sans KR', system-ui, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg); color: var(--text); font-family: var(--font-body);
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 2rem 1rem;
+  word-break: keep-all;
+}
+#progress-bar-wrap { position: fixed; top: 0; left: 0; right: 0; height: 4px; background: var(--border); z-index: 100; display: none; }
+#progress-bar-fill { height: 100%; background: var(--accent); transition: width 0.4s ease; border-radius: 0 2px 2px 0; }
+#demo-badge {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 101;
+  background: #fffbea; border: 1px solid #f0e080; color: #7a6800;
+  font-size: 0.78rem; padding: 0.3rem 0.9rem; border-radius: 99px; white-space: nowrap;
+}
+.card {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+  border: 1px solid var(--border); padding: 2.5rem 2.8rem; width: 100%; max-width: 640px;
+}
+.card.has-map { max-width: 820px; }
+.study-label { font-size: 0.8rem; font-weight: 600; color: var(--accent); margin-bottom: 0.8rem; }
+h1 { font-family: var(--font-head); font-size: 2rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.6rem; }
+h2 { font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; margin-bottom: 1rem; }
+.subtitle { color: var(--muted); font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.8rem; }
+p { line-height: 1.7; color: var(--muted); font-size: 0.93rem; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+label.field-label { display: block; font-weight: 600; font-size: 0.88rem; margin-bottom: 0.45rem; color: var(--text); }
+.optional { font-weight: 400; color: var(--muted); }
+input[type="text"], input[type="email"], input[type="number"], select.info-select, textarea {
+  width: 100%; padding: 0.75rem 1rem; border: 1.5px solid var(--border); border-radius: 8px;
+  font-family: var(--font-body); font-size: 1rem; color: var(--text);
+  background: var(--bg); outline: none; transition: border-color 0.2s;
+}
+select.info-select { appearance: none; }
+textarea { resize: vertical; min-height: 3.2rem; line-height: 1.5; }
+input:focus, select.info-select:focus, textarea:focus { border-color: var(--accent); background: #fff; }
+.field-hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
+.field-group { margin-bottom: 1.2rem; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.75rem 1.6rem; border-radius: 8px;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; cursor: pointer; border: none; transition: background 0.15s;
+}
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dk); }
+.btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+.btn-outline { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+.btn-outline:hover { background: var(--accent-lt); }
+.btn-block { width: 100%; justify-content: center; margin-top: 1.2rem; }
+.btn-row { display: flex; gap: 0.8rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.btn-row .btn { flex: 1; justify-content: center; }
+.error-msg { color: var(--warn); font-size: 0.85rem; margin-top: 0.5rem; display: none; line-height: 1.5; }
+
+/* 동의 */
+.consent { background: var(--bg); border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1.4rem; }
+.consent-text { max-height: 180px; overflow-y: auto; font-size: 0.88rem; color: var(--muted); line-height: 1.7; margin-bottom: 0.8rem; }
+.consent-check { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+.consent-check input { margin-top: 0.3rem; accent-color: var(--accent); }
+
+/* 자극 */
+.stim-wrap { background: var(--accent-lt); border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1.8rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.stim-wrap.is-bare { background: none; padding: 0 0 0.4rem; }
+.stim-body { display: flex; flex-direction: column; gap: 0.8rem; }
+.stim-image { display: block; width: 100%; max-height: 46vh; object-fit: contain; border-radius: 8px; background: #fff; }
+.stim-video { display: block; width: 100%; max-height: 46vh; border-radius: 8px; background: #000; }
+.stim-text { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.4rem 1.5rem;
+  font-family: var(--font-head); font-size: 1.2rem; line-height: 1.8; color: var(--text); white-space: pre-wrap; }
+.sample-counter { font-size: 0.82rem; font-weight: 600; color: var(--accent); }
+.audio-controls { display: flex; align-items: center; gap: 1rem; }
+#play-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#play-btn:hover { background: var(--accent-dk); }
+#play-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#play-btn svg { fill: #fff; }
+.audio-timeline { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; }
+#audio-progress { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #c5d9d2; outline: none; cursor: pointer; }
+#audio-progress::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.audio-time { font-size: 0.75rem; color: var(--muted); display: flex; justify-content: space-between; }
+.replay-hint { font-size: 0.8rem; color: var(--muted); text-align: center; line-height: 1.5; }
+.replay-hint.is-error { color: var(--warn); }
+.replay-hint:empty { display: none; }
+
+/* 슬라이더 응답 */
+.slider-wrap { padding: 0.2rem 0.1rem 0; }
+.slider-input { -webkit-appearance: none; appearance: none; width: 100%; height: 5px; border-radius: 3px; background: var(--border); outline: none; cursor: pointer; }
+.slider-input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: pointer; }
+.slider-input::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; cursor: pointer; }
+.slider-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.slider-input.untouched::-webkit-slider-thumb { background: var(--muted); }
+.slider-input.untouched::-moz-range-thumb { background: var(--muted); }
+.slider-value { text-align: center; font-weight: 600; font-size: 0.95rem; color: var(--accent); margin-top: 0.5rem; min-height: 1.4rem; }
+.slider-value.untouched { color: var(--muted); font-weight: 400; }
+
+/* 다중 선택 */
+.multi-row { display: flex; flex-direction: column; gap: 0.5rem; }
+.multi-option label {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.7rem 1rem;
+  border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.95rem; font-weight: 500;
+  cursor: pointer; color: var(--text); transition: background 0.15s, border-color 0.15s;
+}
+.multi-option label:hover { border-color: var(--accent); }
+.multi-option input { accent-color: var(--accent); width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
+.multi-option input:checked + span { color: var(--accent); font-weight: 600; }
+
+/* 문항 */
+.question-block { margin-bottom: 1.8rem; }
+.question-text { font-size: 0.98rem; font-weight: 500; color: var(--text); margin-bottom: 0.9rem; line-height: 1.55; }
+.question-index { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin-bottom: 0.4rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.likert-row { display: flex; gap: 0.5rem; }
+.likert-option { flex: 1; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.choice-option { flex: 1 1 8rem; }
+.likert-option label, .choice-option label {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  width: 100%; min-height: 2.6rem; padding: 0.55rem 0.6rem; border-radius: 8px;
+  border: 1.5px solid var(--border); font-weight: 600; font-size: 0.95rem;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s; color: var(--muted);
+}
+.likert-option label:hover, .choice-option label:hover { border-color: var(--accent); color: var(--accent); }
+.likert-option input:checked + label, .choice-option input:checked + label { background: var(--accent); border-color: var(--accent); color: #fff; }
+.likert-option input:focus-visible + label, .choice-option input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.likert-anchors { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+.likert-anchors span:last-child { text-align: right; }
+
+.task-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; padding-top: 1.2rem; border-top: 1px solid var(--border); }
+.progress-label { font-size: 0.85rem; color: var(--muted); }
+.progress-label strong { color: var(--text); }
+
+.instr-list { list-style: none; display: flex; flex-direction: column; gap: 0.9rem; margin: 1.2rem 0 1.8rem; }
+.instr-list li { display: flex; gap: 0.8rem; align-items: flex-start; font-size: 0.95rem; color: var(--text); line-height: 1.6; }
+.instr-num { background: var(--accent); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.note { font-size: 0.88rem; color: var(--muted); background: var(--bg); padding: 0.9rem 1rem; border-radius: 8px; }
+
+.complete-icon { width: 60px; height: 60px; background: var(--accent-lt); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; }
+.complete-icon svg { stroke: var(--accent); }
+.center { text-align: center; }
+.demo-export { margin-top: 1.8rem; padding-top: 1.4rem; border-top: 1px dashed var(--border); }
+
+.spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading .spinner { display: block; }
+.loading .btn-text { display: none; }
+
+.screen { display: none; width: 100%; max-width: 820px; justify-content: center; animation: fadeIn 0.3s ease; }
+.screen.active { display: flex; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .screen, #progress-bar-fill { animation: none; transition: none; } }
+@media (max-width: 560px) {
+  body { padding: 3.6rem 0.75rem 1.5rem; }
+  #demo-badge { white-space: normal; width: calc(100% - 24px); text-align: center; border-radius: 10px; }
+  .card { padding: 1.7rem 1.3rem; }
+  h1 { font-size: 1.65rem; }
+  .likert-row { gap: 0.3rem; }
+}
+
+#dev-panel { position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; background: rgba(0,0,0,0.78); border-radius: 10px; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; gap: 0.4rem; }
+#dev-panel span { font-size: 0.68rem; color: #aaa; text-align: center; }
+#dev-panel button { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.74rem; cursor: pointer; text-align: left; }
+#dev-panel button:hover { background: #555; }
+
+/* 녹음 */
+.prompt-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 1.6rem 1.5rem; margin-bottom: 1.4rem; text-align: center; }
+.prompt-text { font-family: var(--font-head); font-size: 1.35rem; line-height: 1.75; color: var(--text); white-space: pre-wrap; }
+.prompt-image { display: block; max-width: 100%; max-height: 38vh; margin: 0 auto 1rem; border-radius: 8px; }
+.rec-panel { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; margin-bottom: 1.2rem; }
+.rec-btn { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #f2d4d1; background: #d9423a; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; }
+.rec-btn:hover { transform: scale(1.05); }
+.rec-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.rec-btn .dot { width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: border-radius 0.15s; }
+.rec-btn.is-recording { animation: pulse 1.2s ease-in-out infinite; }
+.rec-btn.is-recording .dot { border-radius: 4px; }
+.rec-btn:disabled { opacity: 0.4; cursor: not-allowed; animation: none; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,66,58,.35); } 50% { box-shadow: 0 0 0 12px rgba(217,66,58,0); } }
+.rec-timer { font-variant-numeric: tabular-nums; font-size: 1.1rem; font-weight: 600; color: var(--text); }
+.rec-status { font-size: 0.88rem; color: var(--muted); text-align: center; line-height: 1.6; min-height: 1.4rem; }
+.rec-status.is-error { color: var(--warn); }
+.take-review { width: 100%; display: none; flex-direction: column; gap: 0.8rem; }
+.take-review.show { display: flex; }
+.take-review audio { width: 100%; }
+.level-track { width: 100%; height: 12px; background: var(--border); border-radius: 6px; overflow: hidden; }
+.level-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.08s linear; }
+.check-ok { color: var(--accent); font-weight: 600; font-size: 0.9rem; text-align: center; min-height: 1.4rem; }
+.dl-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.8rem; text-align: left; }
+.dl-list a { font-size: 0.88rem; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .rec-btn.is-recording { animation: none; } }
+</style>
+</head>
+<body>
+
+<div id="progress-bar-wrap"><div id="progress-bar-fill" style="width:0%"></div></div>
+<div id="demo-badge" hidden>데모 모드: 서버에 저장되지 않아요. 끝나면 녹음 파일을 받을 수 있어요.</div>
+
+<!-- 화면 1 · 로그인 -->
+<div id="screen-login" class="screen active">
+  <div class="card">
+    <div class="study-label" id="study-label"></div>
+    <h1 id="study-title"></h1>
+    <p class="subtitle" id="study-subtitle"></p>
+    <hr class="divider"/>
+    <div class="consent" id="consent-wrap" hidden>
+      <div class="consent-text" id="consent-text"></div>
+      <label class="consent-check"><input type="checkbox" id="consent-box"/><span id="consent-agree"></span></label>
+    </div>
+    <label class="field-label" for="nickname-input">참가자 ID</label>
+    <input type="text" id="nickname-input" placeholder="예: hong_gildong" autocomplete="off" autocorrect="off" spellcheck="false"/>
+    <p class="field-hint">앞 실험에서 쓴 ID와 같게 입력해 주세요. 같은 ID로 다시 들어오면 이어서 할 수 있어요.</p>
+    <div class="error-msg" id="login-error"></div>
+    <button class="btn btn-primary btn-block" id="start-btn" onclick="handleLogin()">
+      <div class="spinner"></div><span class="btn-text">시작</span>
+    </button>
+  </div>
+</div>
+
+<!-- 화면 2 · 마이크 확인 -->
+<div id="screen-mic" class="screen">
+  <div class="card">
+    <h2>마이크 확인</h2>
+    <p style="margin-bottom:1.4rem;">브라우저가 마이크 사용을 물어보면 <strong>허용</strong>을 눌러 주세요. 그다음 아무 말이나 해 보세요. 아래 막대가 움직이면 됩니다.</p>
+    <div class="level-track"><div class="level-fill" id="level-fill"></div></div>
+    <div class="check-ok" id="mic-ok" style="margin-top:0.8rem;"></div>
+    <div class="error-msg" id="mic-error"></div>
+    <button class="btn btn-primary btn-block" id="mic-next" onclick="showInstructions()" disabled>다음</button>
+  </div>
+</div>
+
+<!-- 화면 3 · 안내 -->
+<div id="screen-instructions" class="screen">
+  <div class="card">
+    <h2>진행 방법</h2>
+    <ul class="instr-list" id="instr-list"></ul>
+    <p class="note" id="study-note"></p>
+    <button class="btn btn-primary btn-block" onclick="startTask()">시작하기</button>
+  </div>
+</div>
+
+<!-- 화면 4 · 녹음 -->
+<div id="screen-task" class="screen">
+  <div class="card">
+    <div class="sample-counter" id="sample-counter" style="margin-bottom:0.8rem;"></div>
+    <div class="prompt-card" id="prompt-card"></div>
+    <div class="rec-panel">
+      <button class="rec-btn" id="rec-btn" onclick="toggleRecord()" aria-label="녹음 시작 / 멈춤"><span class="dot"></span></button>
+      <div class="rec-timer" id="rec-timer">0:00</div>
+      <div class="rec-status" id="rec-status"></div>
+      <div class="take-review" id="take-review">
+        <audio id="take-audio" controls></audio>
+        <div class="btn-row" style="margin-top:0;">
+          <button class="btn btn-outline" id="redo-btn" onclick="resetTake()">다시 녹음</button>
+          <button class="btn btn-primary" id="save-btn" onclick="saveTake()">
+            <div class="spinner"></div><span class="btn-text" id="save-btn-text">저장하고 다음</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="task-footer">
+      <div class="progress-label"><strong id="footer-current">1</strong> / <span id="footer-total"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 화면 5 · 완료 -->
+<div id="screen-complete" class="screen">
+  <div class="card center">
+    <div class="complete-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h2>녹음이 모두 끝났습니다</h2>
+    <p id="complete-text"></p>
+    <div class="demo-export" id="demo-export" hidden>
+      <p style="margin-bottom:0.4rem;">데모 모드로 녹음한 파일이에요. Supabase에 연결하면 이 파일들이 Storage에 쌓입니다.</p>
+      <div class="dl-list" id="dl-list"></div>
+      <div class="btn-row"><button class="btn btn-outline" onclick="downloadDemoCSV()">recordings.csv</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  CONFIG — 실험을 바꿀 때는 이 블록만 고치면 됩니다             ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+const CONFIG = {
+
+  // ① 백엔드 ─ 둘 다 비워두면 '데모 모드' (녹음 파일은 마지막에 직접 내려받기)
+  //    평정 실험(index.html)과 같은 값을 넣으면 됨. 공개용 키(anon / publishable)만.
+  SUPABASE_URL: '',
+  SUPABASE_KEY: '',
+  BUCKET: 'recordings',          // Supabase Storage 버킷 이름 (schema.sql에서 만든 것과 같아야 함)
+
+  // ② 읽을 문장 / 보여줄 그림 ─ 하나가 녹음 1회. id는 파일 이름과 데이터에 찍힘 (영문·숫자·_)
+  //    image를 넣으면 문장 위에 그림이 나옴 (그림 보고 말하기 과제)
+  PROMPTS: [
+    { id: 'p01', text: '오늘 날씨가 참 좋네요.' },
+    { id: 'p02', text: '저는 부산에서 왔습니다.' },
+    { id: 'p03', text: '이 그림을 보고 떠오르는 것을 자유롭게 말해 주세요.', image: 'image/sample_01.png' },
+  ],
+  SHUFFLE: false,
+
+  MIN_SEC: 1,        // 이보다 짧으면 저장하지 않고 다시 녹음하게 함
+  MAX_SEC: 30,       // 이 시간이 되면 자동으로 멈춤
+  RAW_AUDIO: true,   // true: 브라우저의 잡음 제거·자동 음량 조절을 끔 (음향 분석용이면 true 권장)
+
+  // ③ 화면 문구
+  STUDY: {
+    label: '녹음 과제',
+    title: '문장을 소리 내어 읽어 주세요',
+    subtitle: '화면에 나오는 문장을 하나씩 녹음하는 과제입니다. 약 5분 걸립니다.',
+    instructions: [
+      '문장 {n}개를 하나씩 녹음하게 됩니다.',
+      '빨간 버튼을 누르고 읽은 뒤, 다시 눌러 멈추세요.',
+      '녹음을 들어 보고 마음에 들지 않으면 다시 녹음할 수 있어요.',
+      '평소 말하는 속도와 목소리로 읽어 주세요.',
+    ],
+    note: '🎙 조용한 곳에서, 마이크에서 너무 멀지 않게 참여해 주세요.',
+    completeText: '모든 녹음이 저장되었습니다. 이제 창을 닫으셔도 됩니다.',
+  },
+
+  // ④ 연구 동의 ─ 앞 실험에서 이미 받았으면 null
+  CONSENT: null,
+
+  // ⑤ 개발용 화면 이동 패널 ─ 배포할 땐 false. 주소 끝에 ?dev 를 붙이면 false여도 켜짐.
+  DEV_PANEL: false,
+};
+
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  ENGINE — 보통은 여기 아래를 고칠 일이 없습니다                ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const DEMO = !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY;
+const PARAMS = new URLSearchParams(location.search);
+
+/* ── 저장소 ── */
+const store = DEMO ? makeDemoStore() : makeSupabaseStore();
+
+function makeSupabaseStore() {
+  const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  const run = async req => { const { data, error } = await req; if (error) throw error; return data; };
+  return {
+    async doneIds(nickname) {
+      const rows = await run(db.from('recordings').select('prompt_id').eq('nickname', nickname));
+      return rows.map(r => r.prompt_id);
+    },
+    async save(take) {
+      await run(db.storage.from(CONFIG.BUCKET).upload(take.path, take.blob, { contentType: take.mime, upsert: false }));
+      await run(db.from('recordings').insert({
+        nickname: take.nickname, prompt_id: take.prompt_id, file_path: take.path,
+        duration_sec: take.duration_sec, mime_type: take.mime, recorded_at: take.recorded_at,
+      }));
+    },
+  };
+}
+
+function makeDemoStore() {
+  const mem = { recordings: [] };
+  window.demoData = mem;
+  return {
+    async doneIds(nickname) { return mem.recordings.filter(r => r.nickname === nickname).map(r => r.prompt_id); },
+    async save(take) { mem.recordings.push(take); console.log('[데모] 저장:', take.path, take.duration_sec + '초'); },
+  };
+}
+
+/* ── 상태 ── */
+let state = { nickname: '', order: [], index: 0 };
+let stream = null, recorder = null, chunks = [], take = null, recStart = 0, tickTimer = null, maxTimer = null, saving = false;
+
+/* ── 공통 ── */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $('screen-' + id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+function showError(id, msg) { const el = $(id); el.textContent = msg; el.style.display = 'block'; }
+function hideError(id) { $(id).style.display = 'none'; }
+function setLoading(btn, on) { btn.classList.toggle('loading', on); btn.disabled = on; }
+function errText(err) { return (err && (err.message || err.details)) || String(err); }
+function shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m}:${String(s).padStart(2, '0')}`; }
+
+// 스토리지 경로에 한글 등이 들어가면 거부될 수 있어서, 영문 부분 + 짧은 해시로 만든 안전한 폴더명
+function safeFolder(nickname) {
+  let h = 5381; for (const c of nickname) h = ((h << 5) + h + c.codePointAt(0)) >>> 0;
+  const ascii = nickname.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30);
+  return (ascii || 'p') + '_' + h.toString(16);
+}
+
+// 브라우저마다 녹음 가능한 형식이 다름 (크롬: webm, 사파리: mp4)
+function pickMime() {
+  const cands = [['audio/webm;codecs=opus', 'webm'], ['audio/webm', 'webm'], ['audio/mp4', 'm4a'], ['audio/ogg;codecs=opus', 'ogg']];
+  for (const [m, ext] of cands) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return { mime: m, ext };
+  return { mime: '', ext: 'webm' };
+}
+
+/* ── 초기 화면 ── */
+(function init() {
+  const S = CONFIG.STUDY, n = CONFIG.PROMPTS.length;
+  $('study-label').textContent = S.label;
+  $('study-title').innerHTML = S.title;
+  $('study-subtitle').innerHTML = S.subtitle;
+  $('instr-list').innerHTML = S.instructions.map((t, i) =>
+    `<li><span class="instr-num">${i + 1}</span><span>${t.replace('{n}', `<strong>${n}</strong>`)}</span></li>`).join('');
+  $('study-note').innerHTML = S.note;
+  $('study-note').hidden = !S.note;
+  $('complete-text').innerHTML = S.completeText;
+  if (CONFIG.CONSENT) {
+    $('consent-wrap').hidden = false;
+    $('consent-text').innerHTML = CONFIG.CONSENT.text;
+    $('consent-agree').innerHTML = CONFIG.CONSENT.agree;
+  }
+  if (DEMO) $('demo-badge').hidden = false;
+  if (PARAMS.get('nickname')) $('nickname-input').value = PARAMS.get('nickname');   // 평정 실험에서 넘어온 경우
+  $('nickname-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+})();
+
+/* ── 로그인 ── */
+async function handleLogin() {
+  const nickname = $('nickname-input').value.trim();
+  if (CONFIG.CONSENT && !$('consent-box').checked) return showError('login-error', '연구 참여 동의에 체크해 주세요.');
+  if (!nickname) return showError('login-error', '참가자 ID를 입력해 주세요.');
+  hideError('login-error');
+  const btn = $('start-btn'); setLoading(btn, true);
+  try {
+    const done = await store.doneIds(nickname);
+    const remaining = CONFIG.PROMPTS.filter(p => !done.includes(p.id));
+    if (!remaining.length) return showError('login-error', '이 ID는 이미 녹음을 모두 마쳤어요.');
+    if (done.length && !confirm(`이 ID로 녹음한 기록이 ${done.length}개 있어요. 남은 ${remaining.length}개를 이어서 할까요?`))
+      return showError('login-error', '다른 참가자 ID를 입력해 주세요.');
+    state = { nickname, order: CONFIG.SHUFFLE ? shuffle(remaining) : remaining, index: 0 };
+    showScreen('mic');
+    startMicCheck();
+  } catch (err) {
+    console.error(err);
+    showError('login-error', '서버에 연결하지 못했어요. ' + errText(err));
+  } finally { setLoading(btn, false); }
+}
+
+/* ── 마이크 확인 ── */
+async function startMicCheck() {
+  hideError('mic-error');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder)
+    return showError('mic-error', '이 브라우저에서는 녹음을 할 수 없어요. 크롬이나 엣지 최신 버전으로, https 주소에서 열어 주세요.');
+  try {
+    const raw = CONFIG.RAW_AUDIO;
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: !raw, noiseSuppression: !raw, autoGainControl: !raw } });
+  } catch (err) {
+    console.error(err);
+    const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+    return showError('mic-error', denied
+      ? '마이크 권한이 거부됐어요. 주소창 왼쪽의 자물쇠(또는 설정) 아이콘에서 마이크를 허용한 뒤 새로고침해 주세요.'
+      : '마이크를 찾지 못했어요. 마이크가 연결돼 있는지 확인해 주세요. (' + errText(err) + ')');
+  }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser();
+  an.fftSize = 1024; src.connect(an);
+  const buf = new Float32Array(an.fftSize);
+  let heard = false;
+  (function loop() {
+    if (!$('screen-mic').classList.contains('active')) { ctx.close(); return; }
+    an.getFloatTimeDomainData(buf);
+    let sum = 0; for (const v of buf) sum += v * v;
+    const rms = Math.sqrt(sum / buf.length);
+    $('level-fill').style.width = Math.min(100, rms * 400) + '%';
+    if (!heard && rms > 0.02) { heard = true; $('mic-ok').textContent = '✓ 소리가 들어오고 있어요'; $('mic-next').disabled = false; }
+    requestAnimationFrame(loop);
+  })();
+}
+
+function showInstructions() { showScreen('instructions'); }
+function startTask() { $('progress-bar-wrap').style.display = 'block'; loadPrompt(0); showScreen('task'); }
+
+/* ── 녹음 ── */
+function loadPrompt(i) {
+  state.index = i;
+  const p = state.order[i], total = state.order.length;
+  $('prompt-card').innerHTML =
+    (p.image ? `<img class="prompt-image" src="${esc(p.image)}" alt="과제 그림"/>` : '') +
+    `<div class="prompt-text">${esc(p.text || '')}</div>`;
+  $('sample-counter').textContent = `${i + 1} / ${total}`;
+  $('footer-current').textContent = i + 1;
+  $('footer-total').textContent = total;
+  $('save-btn-text').textContent = i === total - 1 ? '저장하고 마치기' : '저장하고 다음';
+  $('progress-bar-fill').style.width = (i / total * 100) + '%';
+  resetTake();
+}
+
+function setStatus(t, err) { const s = $('rec-status'); s.textContent = t; s.classList.toggle('is-error', !!err); }
+
+function resetTake() {
+  take = null;
+  $('take-review').classList.remove('show');
+  $('take-audio').removeAttribute('src');
+  $('rec-btn').disabled = false;
+  $('rec-timer').textContent = '0:00';
+  setStatus('빨간 버튼을 누르면 녹음이 시작돼요.');
+}
+
+function toggleRecord() { recorder && recorder.state === 'recording' ? stopRecord() : startRecord(); }
+
+function startRecord() {
+  if (!stream) return setStatus('마이크가 연결돼 있지 않아요. 새로고침해 주세요.', true);
+  const { mime, ext } = pickMime();
+  chunks = [];
+  recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => finishTake(recorder.mimeType || mime || 'audio/webm', ext);
+  recorder.start();
+  recStart = performance.now();
+  $('rec-btn').classList.add('is-recording');
+  $('take-review').classList.remove('show');
+  setStatus('녹음 중… 다 읽으면 버튼을 다시 눌러 주세요.');
+  tickTimer = setInterval(() => { $('rec-timer').textContent = fmt((performance.now() - recStart) / 1000); }, 200);
+  maxTimer = setTimeout(() => { if (recorder.state === 'recording') { stopRecord(); setStatus(`최대 ${CONFIG.MAX_SEC}초가 되어 자동으로 멈췄어요.`); } }, CONFIG.MAX_SEC * 1000);
+}
+
+function stopRecord() {
+  clearInterval(tickTimer); clearTimeout(maxTimer);
+  $('rec-btn').classList.remove('is-recording');
+  if (recorder && recorder.state === 'recording') recorder.stop();
+}
+
+function finishTake(mime, ext) {
+  const dur = (performance.now() - recStart) / 1000;
+  const blob = new Blob(chunks, { type: mime });
+  if (dur < CONFIG.MIN_SEC || !blob.size) {
+    setStatus(`녹음이 너무 짧아요 (${dur.toFixed(1)}초). 다시 녹음해 주세요.`, true);
+    return;
+  }
+  const p = state.order[state.index];
+  take = {
+    nickname: state.nickname, prompt_id: p.id,
+    path: `${safeFolder(state.nickname)}/${p.id}_${Date.now()}.${ext}`,
+    blob, mime: mime.split(';')[0], duration_sec: Math.round(dur * 100) / 100,
+    recorded_at: new Date().toISOString(),
+  };
+  $('take-audio').src = URL.createObjectURL(blob);
+  $('take-review').classList.add('show');
+  setStatus('녹음을 들어 보고, 괜찮으면 저장해 주세요.');
+}
+
+async function saveTake() {
+  if (!take || saving) return;
+  saving = true;
+  const btn = $('save-btn'); setLoading(btn, true); $('redo-btn').disabled = true; $('rec-btn').disabled = true;
+  try {
+    await store.save(take);
+    saving = false;
+    if (state.index + 1 < state.order.length) loadPrompt(state.index + 1);
+    else finish();
+  } catch (err) {
+    console.error(err);
+    saving = false;
+    alert('녹음을 저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요. 녹음은 지워지지 않았어요.\n\n(' + errText(err) + ')');
+    $('rec-btn').disabled = false;
+  } finally {
+    setLoading(btn, false); $('redo-btn').disabled = false;
+  }
+}
+
+function finish() {
+  $('progress-bar-fill').style.width = '100%';
+  if (stream) stream.getTracks().forEach(t => t.stop());   // 마이크 끄기
+  if (DEMO) {
+    $('demo-export').hidden = false;
+    $('dl-list').innerHTML = window.demoData.recordings.map((r, i) =>
+      `<a href="${URL.createObjectURL(r.blob)}" download="${r.path.split('/').pop()}">⬇ ${r.prompt_id} (${r.duration_sec}초)</a>`).join('');
+  }
+  showScreen('complete');
+}
+
+/* ── 데모 CSV ── */
+function downloadDemoCSV() {
+  const rows = window.demoData.recordings.map(({ blob, ...rest }) => rest);
+  const cols = ['nickname', 'prompt_id', 'file_path', 'duration_sec', 'mime_type', 'recorded_at'];
+  const cell = v => { const s = v == null ? '' : String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = [cols.join(','), ...rows.map(r => [r.nickname, r.prompt_id, r.path, r.duration_sec, r.mime, r.recorded_at].map(cell).join(','))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'recordings.csv'; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ── 개발용 패널 ── */
+if (CONFIG.DEV_PANEL || PARAMS.has('dev')) {
+  const panel = document.createElement('div'); panel.id = 'dev-panel';
+  const jumps = [
+    ['1. 로그인', () => showScreen('login')],
+    ['2. 마이크', () => { showScreen('mic'); startMicCheck(); }],
+    ['3. 안내', () => showScreen('instructions')],
+    ['4. 녹음', () => { if (!state.order.length) state.order = CONFIG.PROMPTS.slice(); startTask(); }],
+    ['5. 완료', () => finish()],
+  ];
+  panel.innerHTML = '<span>DEV</span>';
+  jumps.forEach(([l, f]) => { const b = document.createElement('button'); b.textContent = l; b.onclick = f; panel.appendChild(b); });
+  document.body.appendChild(panel);
+}
+</script>
+</body>
+</html>
