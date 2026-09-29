@@ -1,4 +1,5 @@
 contact via zaqs1578@gmail.com 
+주소는 https://(본인ID).github.io/(리포지터리 이름)/(파일명)입니다. 예시로 newtownman.github.io/workshop1/index.html
 
 # 청취 평정 실험 스켈레톤
 
@@ -8,15 +9,16 @@ contact via zaqs1578@gmail.com
 
 - `index.html` — 평정 실험. 위쪽 **CONFIG** 블록만 고치면 됩니다.
 - `recording.html` — 녹음 과제. 구조는 같습니다.
-- `GUIDE.md` — 내 실험으로 바꾸는 법 + Claude에게 시키는 프롬프트 틀
+- `GUIDE.md` — 내 실험으로 바꾸는 법 + Claude 등 AI에게 시키는 프롬프트 틀
 - `schema.sql` — Supabase에 붙여넣을 테이블·권한 설정
 - `audio/` `video/` `image/` — 연습용 견본 자극
 
 ## 지금 상태로 이미 돌아가는 것
 
 자극은 **음성 · 영상 · 이미지 · 글자 · 자극 없음(설문)** 다섯 가지,
-응답은 **척도 · 슬라이더 · 하나 고르기(2AFC/n-AFC) · 여러 개 고르기 · 자유 응답 · 미국 지도** 여섯 가지가
+응답은 **척도 · 슬라이더 · 하나 고르기(2AFC/n-AFC) · 여러 개 고르기 · 자유 응답 · 미국 지도(작성자가 사용했었음)** 여섯 가지가
 전부 켜진 상태입니다. CONFIG에서 안 쓰는 걸 지우고 쓰는 걸 남기세요.
+추가로 수정하셔도 상관은 없습니다. 개수 상관 없음.
 
 ## 1단계: 데모 모드로 돌려보기 (계정 필요 없음)
 
