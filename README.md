@@ -1,3 +1,5 @@
+contact via zaqs1578@gmail.com 
+
 # 청취 평정 실험 스켈레톤
 
 음성을 들려주고 문항에 답하게 하는 웹 실험 틀입니다. `index.html` 파일 하나로 돌아가요.
