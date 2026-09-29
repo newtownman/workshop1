@@ -40,7 +40,14 @@ create table participant_info (
   created_at     timestamptz not null default now()
 );
 
--- 2) 접근 권한 (RLS) ------------------------------------------
+-- 2) 접근 권한 ------------------------------------------------
+-- 2026년 5월 30일 이후 만든 Supabase 프로젝트는 새 테이블을 자동으로 열어주지 않음.
+-- 그래서 두 겹으로 열어줘야 함: ① GRANT(문 열기)  ② RLS 정책(누가 무엇을 할 수 있나)
+-- 둘 중 하나라도 빠지면 사이트에서 "permission denied" 또는 "row-level security" 오류가 남.
+
+grant select, insert, update on public.participants     to anon;
+grant insert                 on public.responses        to anon;
+grant insert                 on public.participant_info to anon;
 -- 공개 키로 들어온 참가자는 '쓰기'만 가능. 응답·개인정보를 읽는 건 대시보드(연구자)만.
 -- participants만 이어하기 때문에 읽기/수정이 필요함 (개인정보는 없음).
 
@@ -68,6 +75,7 @@ create table recordings (
   recorded_at   timestamptz,
   created_at    timestamptz not null default now()
 );
+grant select, insert on public.recordings to anon;
 alter table recordings enable row level security;
 create policy "recordings: insert" on recordings for insert to anon with check (true);
 create policy "recordings: read"   on recordings for select to anon using (true);   -- 이어하기용 (파일 자체는 비공개)
