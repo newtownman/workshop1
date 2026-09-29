@@ -41,9 +41,6 @@ create table participant_info (
 );
 
 -- 2) 접근 권한 ------------------------------------------------
--- 2026년 5월 30일 이후 만든 Supabase 프로젝트는 새 테이블을 자동으로 열어주지 않음.
--- 그래서 두 겹으로 열어줘야 함: ① GRANT(문 열기)  ② RLS 정책(누가 무엇을 할 수 있나)
--- 둘 중 하나라도 빠지면 사이트에서 "permission denied" 또는 "row-level security" 오류가 남.
 
 grant select, insert, update on public.participants     to anon;
 grant insert                 on public.responses        to anon;
