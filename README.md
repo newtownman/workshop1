@@ -1,5 +1,6 @@
 contact via zaqs1578@gmail.com 
-주소는 https://(본인ID).github.io/(리포지터리 이름)/(파일명)입니다. 예시로 newtownman.github.io/workshop1/index.html
+주소는 https://(본인ID).github.io/(리포지터리 이름)/(파일명)입니다. 
+예시로 newtownman.github.io/workshop1/index.html
 
 # 청취 평정 실험 스켈레톤
 
